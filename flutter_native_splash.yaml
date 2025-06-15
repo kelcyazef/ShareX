@@ -1,0 +1,20 @@
+flutter_native_splash:
+  # This is the background color of the splash screen
+  color: "#ffffff"
+  
+  # Use the ShareX.png as the splash screen image
+  image: Assets/ShareX.png
+  
+  # Make the splash screen occupy the entire screen
+  fullscreen: true
+  
+  # Disable the Android 12+ splash screen (we'll use our custom one)
+  android_12:
+    image: Assets/ShareX.png
+    icon_background_color: "#ffffff"
+    
+  # Set the splash screen for iOS
+  ios: true
+  
+  # Set the splash screen for web
+  web: false
