@@ -5,6 +5,7 @@ import 'package:nearby_connections/nearby_connections.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'file_storage_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/received_file.dart';
 
 class P2PService {
@@ -12,10 +13,11 @@ class P2PService {
   factory P2PService() => _instance;
   P2PService._internal() {
     _fileStorageService.init();
+    _loadUserName();
   }
 
   final Nearby _nearby = Nearby();
-  final String _userName = "ShareXUser";
+  String _userName = "ShareXUser";
   final FileStorageService _fileStorageService = FileStorageService();
 
   final Map<String, String> _discoveredEndpoints = {};
@@ -24,6 +26,29 @@ class P2PService {
   final Map<int, String> _payloadFileNames = {};
   final Map<int, String> _payloadFileUris = {};
   final Set<int> _savedPayloadIds = {}; // Track which payloads have already been saved
+
+  // ----------------------------
+  // User profile handling
+  // ----------------------------
+  Future<void> _loadUserName() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedName = prefs.getString('userName');
+    if (savedName != null && savedName.isNotEmpty) {
+      _userName = savedName;
+    }
+  }
+
+  Future<void> setUserName(String name) async {
+    _userName = name;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('userName', name);
+    // Restart advertising & discovery with new name
+    await stopAllEndpoints();
+    await startAdvertising();
+    await startDiscovery();
+  }
+
+  String get userName => _userName;
 
   final StreamController<Map<String, dynamic>> connectionEventsController =
       StreamController.broadcast();

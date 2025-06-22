@@ -76,6 +76,16 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
   final List<Map<String, dynamic>> _discoveredEndpoints = [];
   final List<String> _connectedEndpointIds = [];
 
+  // Profile
+  late TextEditingController _nameController;
+  String _profileName = '';
+
+  // Transfer progress state
+  bool _transferInProgress = false;
+  String _transferFileName = '';
+  double _transferProgress = 0.0;
+  StateSetter? _progressDialogSetState;
+
   StreamSubscription? _accelSub;
   StreamSubscription? _connectionEventSub;
   StreamSubscription? _payloadEventSub;
@@ -85,6 +95,8 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     _p2pService = P2PService();
+    _profileName = _p2pService.userName;
+    _nameController = TextEditingController(text: _profileName);
     _initializeServices();
     _startShakeDetection();
     WidgetsBinding.instance.addObserver(this);
@@ -209,16 +221,16 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
           String status = event['status'] as String? ?? '';
           String fileName = event['fileName'] as String? ?? 'Unknown file';
           if (status == PayloadStatus.SUCCESS.toString()) {
-            _statusMessage = "File $fileName from ${event['endpointId']} received successfully!";
+            _closeTransferDialog();
             // Don't show a snackbar here as we'll show one when file_received event comes
           } else if (status == PayloadStatus.FAILURE.toString()) {
-            _statusMessage = "File transfer $fileName from ${event['endpointId']} failed.";
+            _closeTransferDialog();
             ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("File transfer failed: $fileName")));
           } else if (status == PayloadStatus.IN_PROGRESS.toString()) {
             int bytesTransferred = event['bytesTransferred'] as int? ?? 0;
             int totalBytes = event['totalBytes'] as int? ?? 1;
-            double progress = bytesTransferred / totalBytes;
-            _statusMessage = "File $fileName from ${event['endpointId']} in progress: ${(progress * 100).toStringAsFixed(1)}%";
+            double progress = totalBytes == 0 ? 0 : bytesTransferred / totalBytes;
+            _showOrUpdateTransferDialog(fileName, progress);
           }
           break;
         case 'file_received':
@@ -259,6 +271,52 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
     if (bytes < 1024 * 1024) return "${(bytes / 1024).toStringAsFixed(1)} KB";
     if (bytes < 1024 * 1024 * 1024) return "${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB";
     return "${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB";
+  }
+
+  // ---------------- Transfer Progress Dialog ----------------
+  void _showOrUpdateTransferDialog(String fileName, double progress) {
+    if (!_transferInProgress) {
+      _transferInProgress = true;
+      _transferFileName = fileName;
+      _transferProgress = progress;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) {
+          return StatefulBuilder(
+            builder: (context, setStateDialog) {
+              _progressDialogSetState = setStateDialog;
+              return AlertDialog(
+                title: const Text('Transferring File'),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(_transferFileName, overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 16),
+                    LinearProgressIndicator(value: _transferProgress),
+                    const SizedBox(height: 8),
+                    Text('${(_transferProgress * 100).toStringAsFixed(1)} %'),
+                  ],
+                ),
+              );
+            },
+          );
+        },
+      );
+    } else {
+      _transferProgress = progress;
+      if (_progressDialogSetState != null) {
+        _progressDialogSetState!(() {});
+      }
+    }
+  }
+
+  void _closeTransferDialog() {
+    if (_transferInProgress) {
+      Navigator.of(context, rootNavigator: true).pop();
+      _transferInProgress = false;
+      _progressDialogSetState = null;
+    }
   }
 
   void _handleIncomingConnectionRequest(Map<String, dynamic> event) {
@@ -306,9 +364,19 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
       final double x = event.x / 9.81, y = event.y / 9.81, z = event.z / 9.81;
       double gForce = x * x + y * y + z * z;
       if (gForce > shakeThresholdGravity * shakeThresholdGravity) {
-        _pickAndSendFiles(triggeredByShake: true);
+        _onShakeTriggered();
       }
     });
+  }
+
+  void _onShakeTriggered() {
+    if (_pickedFilePaths.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select files to send.')));
+      }
+      return;
+    }
+    _sendSelectedFiles();
   }
 
   Future<void> _pickFiles() async {
@@ -334,11 +402,14 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _pickAndSendFiles({bool triggeredByShake = false}) async {
-    if (!triggeredByShake || (triggeredByShake && _pickedFilePaths.isEmpty)) {
+  Future<void> _pickAndSendFiles({required bool triggeredByShake}) async {
+    if (!triggeredByShake) {
+      // Manual selection only; do not send automatically.
       await _pickFiles();
+      return; // wait for shake or manual send.
     }
 
+    // triggered by shake here; attempt to send
     if (_pickedFilePaths.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No files selected to send.')));
@@ -376,6 +447,72 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
     } else {
       setState(() {
         _statusMessage = "File sending failed or no files were sent.";
+      });
+    }
+  }
+
+  void _showProfileDialog() {
+    _nameController.text = _profileName;
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Set Profile Name'),
+          content: TextField(
+            controller: _nameController,
+            decoration: const InputDecoration(labelText: 'Your name'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('CANCEL'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                final newName = _nameController.text.trim();
+                if (newName.isNotEmpty) {
+                  await _p2pService.setUserName(newName);
+                  setState(() {
+                    _profileName = newName;
+                    _statusMessage = 'Profile name set to $newName';
+                  });
+                }
+              },
+              child: const Text('SAVE'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _sendSelectedFiles() async {
+    if (_pickedFilePaths.isEmpty) return;
+    if (_connectedEndpointIds.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No devices connected to send files.')));
+      }
+      return;
+    }
+    int filesSentCount = 0;
+    for (String path in _pickedFilePaths) {
+      for (String endpointId in _connectedEndpointIds) {
+        try {
+          await _p2pService.sendFile(endpointId, path);
+          filesSentCount++;
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Error sending file $path to $endpointId: $e')));
+          }
+        }
+      }
+    }
+    if (filesSentCount > 0) {
+      setState(() {
+        _statusMessage = "Sent $filesSentCount file(s).";
+        _pickedFilePaths = [];
       });
     }
   }
@@ -434,6 +571,7 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
     _connectionEventSub?.cancel();
     _payloadEventSub?.cancel();
     _incomingConnectionRequestSub?.cancel();
+    _nameController.dispose();
     try {
       _p2pService.stopAllEndpoints().catchError((error) => print('Error stopping endpoints: $error'));
     } catch (e) {
@@ -541,16 +679,6 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
         title: Text(widget.title),
         actions: [
           IconButton(
-            icon: const Icon(Icons.file_download_done),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const FilesScreen()),
-              );
-            },
-            tooltip: "View Received Files",
-          ),
-          IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () async {
               setState(() {
@@ -563,7 +691,22 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
               await _p2pService.startDiscovery();
             },
             tooltip: "Restart P2P Services",
-          )
+          ),
+          IconButton(
+            icon: const Icon(Icons.file_download_done),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const FilesScreen()),
+              );
+            },
+            tooltip: "View Received Files",
+          ),
+          IconButton(
+            icon: const Icon(Icons.account_circle),
+            onPressed: _showProfileDialog,
+            tooltip: 'Profile',
+          ),
         ],
       ),
       body: SingleChildScrollView(
@@ -579,12 +722,7 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(color: kAccentColor),
               ),
               const SizedBox(height: 20),
-              ElevatedButton.icon(
-                icon: const Icon(Icons.file_upload_outlined),
-                label: const Text('Pick Files to Share'),
-                onPressed: () => _pickAndSendFiles(triggeredByShake: false),
-              ),
-              const SizedBox(height: 10),
+
               _buildSelectedFilesList(),
               const SizedBox(height: 20),
               Text("Discovered Devices:", style: Theme.of(context).textTheme.titleLarge),
@@ -599,9 +737,47 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _pickAndSendFiles(triggeredByShake: _pickedFilePaths.isNotEmpty),
+        onPressed: () {
+          if (_pickedFilePaths.isEmpty) {
+            _pickFiles();
+          } else {
+            _sendSelectedFiles();
+          }
+        },
         tooltip: _pickedFilePaths.isNotEmpty ? 'Send Selected Files' : 'Pick & Send Files',
         child: Icon(_pickedFilePaths.isNotEmpty ? Icons.send : Icons.add_to_drive_outlined),
+      ),
+      bottomNavigationBar: BottomAppBar(
+        color: kButtonColor,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 8.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.send, color: Colors.white),
+                tooltip: 'Send',
+                onPressed: () {
+                  if (_pickedFilePaths.isEmpty) {
+                    _pickFiles();
+                  } else {
+                    _sendSelectedFiles();
+                  }
+                }
+              ),
+              IconButton(
+                icon: const Icon(Icons.file_download_done, color: Colors.white),
+                tooltip: 'Received Files',
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const FilesScreen()),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
