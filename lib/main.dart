@@ -10,9 +10,13 @@ void main() {
   runApp(const MyApp());
 }
 
-const Color kPrimaryColor = Colors.white;
-const Color kButtonColor = Color(0xFF001f3f); // navy
-const Color kAccentColor = Colors.blueAccent;
+const Color kPrimaryColor = Color(0xFFEAF6FF); // light blue background
+const Color kButtonColor = Color(0xFF0A84FF); // shiny blue
+const Color kAccentColor = Color(0xFF5AC8FA); // light accent blue
+const Color kSecondaryColor = Color(0xFF002B5B); // navy secondary
+const Color kPrimaryTextColor = Color(0xFF1E1E1E);
+const Color kFABColor = Color(0xFFD0E9FF); // pale FAB blue
+const Color kIconContainerColor = Color(0xFFF1F5F9); // light icon bg
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -26,14 +30,14 @@ class MyApp extends StatelessWidget {
         scaffoldBackgroundColor: kPrimaryColor,
         colorScheme: ColorScheme.light(
           primary: kButtonColor,
-          secondary: kAccentColor,
+          secondary: kSecondaryColor,
           onPrimary: Colors.white,
           onSecondary: Colors.white,
         ),
         appBarTheme: const AppBarTheme(
-          backgroundColor: kButtonColor,
+          backgroundColor: kSecondaryColor,
           foregroundColor: Colors.white,
-          elevation: 4.0,
+          elevation: 0,
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
@@ -44,7 +48,7 @@ class MyApp extends StatelessWidget {
           ),
         ),
         floatingActionButtonTheme: const FloatingActionButtonThemeData(
-          backgroundColor: kButtonColor,
+          backgroundColor: kSecondaryColor,
           foregroundColor: Colors.white,
         ),
         textTheme: const TextTheme(
@@ -402,6 +406,7 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
     }
   }
 
+  // ignore: unused_element
   Future<void> _pickAndSendFiles({required bool triggeredByShake}) async {
     if (!triggeredByShake) {
       // Manual selection only; do not send automatically.
@@ -597,9 +602,24 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
         return Card(
           margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
           child: ListTile(
+            leading: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: kIconContainerColor,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.phone_iphone_rounded, color: kPrimaryTextColor, size: 20),
+            ),
             title: Text(endpoint['name'] ?? 'Unknown Device'),
             subtitle: Text("ID: ${endpoint['id']}"),
             trailing: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: const StadiumBorder(),
+              ),
               child: const Text('Connect'),
               onPressed: () {
                 _p2pService.requestConnection(endpoint['id'], endpoint['name'] ?? 'Unknown Device');
@@ -629,7 +649,12 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
           child: ListTile(
             title: Text('Connected: $endpointId'),
             trailing: ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+              style: ElevatedButton.styleFrom(
+               backgroundColor: Colors.red,
+               foregroundColor: Colors.white,
+               elevation: 0,
+               shape: const StadiumBorder(),
+             ),
               child: const Text('Disconnect'),
               onPressed: () {
                 _p2pService.disconnect(endpointId);
@@ -645,14 +670,87 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
     if (_pickedFilePaths.isEmpty) {
       return const SizedBox.shrink();
     }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Padding(
-          padding: EdgeInsets.all(8.0),
-          child: Text("Selected Files:", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        ),
-        ListView.builder(
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
+        ],
+      ),
+      padding: const EdgeInsets.all(8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(8.0),
+            child: Text(
+              'Selected Files:',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ),
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _pickedFilePaths.length,
+            itemBuilder: (context, index) {
+              final path = _pickedFilePaths[index];
+              return Card(
+                margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
+                child: ListTile(
+                  leading: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: kIconContainerColor,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.description_outlined, color: kPrimaryTextColor, size: 20),
+                  ),
+                  title: Text(_getFileName(path)),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  } // end _buildSelectedFilesList
+  /* DUPLICATE BLOCK START
+    if (_pickedFilePaths.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0,2))],
+      ),
+      padding: const EdgeInsets.all(8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(8.0),
+            child: Text("Selected Files:", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          ),
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _pickedFilePaths.length,
+            itemBuilder: (context, index) {
+              final filePath = _pickedFilePaths[index];
+              return Card(
+                margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
+                child: ListTile(
+                  leading: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: kIconContainerColor,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.description_outlined, color: kPrimaryTextColor, size: 20),
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           itemCount: _pickedFilePaths.length,
@@ -661,7 +759,15 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
             return Card(
               margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
               child: ListTile(
-                leading: const Icon(Icons.insert_drive_file, color: kButtonColor),
+                leading: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: kIconContainerColor,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.description_outlined, color: kPrimaryTextColor, size: 20),
+                ),
                 title: Text(_getFileName(filePath)),
               ),
             );
@@ -673,13 +779,15 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
   }
 
   @override
+*/
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.title),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh_rounded),
             onPressed: () async {
               setState(() {
                 _statusMessage = "Restarting services...";
@@ -693,7 +801,7 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
             tooltip: "Restart P2P Services",
           ),
           IconButton(
-            icon: const Icon(Icons.file_download_done),
+            icon: const Icon(Icons.download_done_rounded),
             onPressed: () {
               Navigator.push(
                 context,
@@ -703,7 +811,7 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
             tooltip: "View Received Files",
           ),
           IconButton(
-            icon: const Icon(Icons.account_circle),
+            icon: const Icon(Icons.person_rounded),
             onPressed: _showProfileDialog,
             tooltip: 'Profile',
           ),
@@ -716,22 +824,41 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
             mainAxisAlignment: MainAxisAlignment.start,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              Text(
-                _statusMessage,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(color: kAccentColor),
-              ),
+              if ((_statusMessage.contains('Advertising') || _statusMessage.contains('Connecting'))) ...[
+               Text(
+                 _statusMessage,
+                 textAlign: TextAlign.center,
+                 style: Theme.of(context).textTheme.titleSmall?.copyWith(color: kAccentColor),
+               ),
+               const SizedBox(height: 20),
+             ],
               const SizedBox(height: 20),
 
               _buildSelectedFilesList(),
               const SizedBox(height: 20),
-              Text("Discovered Devices:", style: Theme.of(context).textTheme.titleLarge),
+              const Text("Discovered Devices:", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black)),
               const SizedBox(height: 10),
-              _buildDiscoveredEndpointsList(),
+               Container(
+                 decoration: BoxDecoration(
+                   color: Colors.white,
+                   borderRadius: BorderRadius.circular(12),
+                   boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0,2))],
+                 ),
+                 padding: const EdgeInsets.all(8),
+                 child: _buildDiscoveredEndpointsList(),
+               ),
               const SizedBox(height: 20),
-              Text("Connected Devices:", style: Theme.of(context).textTheme.titleLarge),
+              const Text("Connected Devices:", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black)),
               const SizedBox(height: 10),
-              _buildConnectedEndpointsList(),
+               Container(
+                 decoration: BoxDecoration(
+                   color: Colors.white,
+                   borderRadius: BorderRadius.circular(12),
+                   boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0,2))],
+                 ),
+                 padding: const EdgeInsets.all(8),
+                 child: _buildConnectedEndpointsList(),
+               ),
             ],
           ),
         ),
@@ -745,17 +872,20 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
           }
         },
         tooltip: _pickedFilePaths.isNotEmpty ? 'Send Selected Files' : 'Pick & Send Files',
-        child: Icon(_pickedFilePaths.isNotEmpty ? Icons.send : Icons.add_to_drive_outlined),
+        child: Icon(_pickedFilePaths.isNotEmpty ? Icons.send_rounded : Icons.cloud_upload_rounded),
+        backgroundColor: kSecondaryColor,
+        foregroundColor: Colors.white,
       ),
       bottomNavigationBar: BottomAppBar(
-        color: kButtonColor,
+        color: kSecondaryColor,
+        elevation: 0,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 8.0),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               IconButton(
-                icon: const Icon(Icons.send, color: Colors.white),
+                icon: const Icon(Icons.send_rounded, color: Colors.white),
                 tooltip: 'Send',
                 onPressed: () {
                   if (_pickedFilePaths.isEmpty) {
@@ -766,7 +896,7 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
                 }
               ),
               IconButton(
-                icon: const Icon(Icons.file_download_done, color: Colors.white),
+                icon: const Icon(Icons.download_done_rounded, color: Colors.white),
                 tooltip: 'Received Files',
                 onPressed: () {
                   Navigator.push(
